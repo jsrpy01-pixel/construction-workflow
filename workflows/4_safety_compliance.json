@@ -1,0 +1,151 @@
+{
+  "id": "workflow_004",
+  "name": "Safety Compliance Check",
+  "description": "Daily safety compliance checks and incident reporting",
+  "version": "1.0",
+  "enabled": true,
+  "trigger": {
+    "type": "schedule",
+    "cron": "0 7 * * 1-5",
+    "description": "Triggers every weekday at 7:00 AM",
+    "timezone": "America/New_York"
+  },
+  "actions": [
+    {
+      "id": "action_001",
+      "type": "send_form_request",
+      "name": "Send Safety Checklist to Supervisors",
+      "config": {
+        "recipients": "site_supervisors",
+        "form_template": "safety_checklist",
+        "channels": ["slack", "email"],
+        "form_fields": [
+          "project_id",
+          "personal_protective_equipment",
+          "site_conditions",
+          "equipment_status",
+          "hazards_identified",
+          "workers_trained",
+          "incident_count",
+          "near_misses",
+          "corrective_actions_needed"
+        ],
+        "deadline_hours": 1
+      }
+    },
+    {
+      "id": "action_002",
+      "type": "store_form_response",
+      "name": "Store Safety Check Data",
+      "config": {
+        "table": "safety_checklists",
+        "fields_mapping": {
+          "project_id": "$.project_id",
+          "check_date": "now()",
+          "supervisor_id": "$.supervisor_id",
+          "ppe_compliant": "$.personal_protective_equipment",
+          "site_conditions_status": "$.site_conditions",
+          "equipment_status": "$.equipment_status",
+          "hazards_found": "$.hazards_identified",
+          "training_complete": "$.workers_trained",
+          "incident_count": "$.incident_count",
+          "near_misses": "$.near_misses",
+          "actions_required": "$.corrective_actions_needed",
+          "created_at": "now()"
+        }
+      }
+    },
+    {
+      "id": "action_003",
+      "type": "evaluate_compliance",
+      "name": "Evaluate Safety Compliance",
+      "config": {
+        "scoring_rules": {
+          "ppe_compliant": "critical",
+          "site_conditions": "high",
+          "equipment_status": "high",
+          "training_complete": "medium"
+        },
+        "pass_threshold": 85
+      }
+    },
+    {
+      "id": "action_004",
+      "type": "conditional_action",
+      "name": "Check Compliance Status",
+      "config": {
+        "condition": "compliance_score < 85",
+        "then": "escalate_to_safety_manager",
+        "else": "log_compliance_pass"
+      }
+    },
+    {
+      "id": "action_005",
+      "type": "escalate_to_safety_manager",
+      "name": "Escalate Non-Compliance Issues",
+      "config": {
+        "recipients": ["safety_manager"],
+        "severity_levels": {
+          "critical": "immediate_action",
+          "high": "same_day",
+          "medium": "next_day"
+        },
+        "create_incident_ticket": true
+      }
+    },
+    {
+      "id": "action_006",
+      "type": "handle_incident_report",
+      "name": "Process Safety Incidents",
+      "config": {
+        "trigger": "incident_count > 0",
+        "create_ticket": true,
+        "notify_management": true,
+        "document_incident": true
+      }
+    },
+    {
+      "id": "action_007",
+      "type": "send_notification",
+      "name": "Notify Site Supervisor of Issues",
+      "config": {
+        "recipients": ["site_supervisor"],
+        "channels": ["slack", "email"],
+        "message_template": "safety_issues_notification",
+        "include_corrective_actions": true
+      }
+    },
+    {
+      "id": "action_008",
+      "type": "generate_weekly_report",
+      "name": "Generate Weekly Safety Report",
+      "config": {
+        "trigger": "day_of_week = Friday",
+        "template": "weekly_safety_report",
+        "include_metrics": [
+          "compliance_trend",
+          "incident_summary",
+          "top_hazards",
+          "corrective_actions_status"
+        ],
+        "format": "pdf",
+        "distribute_to": ["safety_manager", "project_manager", "admin"]
+      }
+    }
+  ],
+  "conditions": [
+    {
+      "type": "time_condition",
+      "description": "Only on weekdays (Mon-Fri)"
+    }
+  ],
+  "error_handling": {
+    "retry_count": 2,
+    "retry_delay_seconds": 300,
+    "on_failure": "send_alert_to_admin"
+  },
+  "scheduling": {
+    "timeout_seconds": 900,
+    "priority": "critical"
+  }
+}
