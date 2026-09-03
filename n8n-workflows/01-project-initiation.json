@@ -1,0 +1,143 @@
+{
+  "name": "01 - Project Initiation & Job Tracking",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "project-created",
+        "httpMethod": "POST",
+        "responseMode": "onReceived"
+      },
+      "id": "1a111111-1111-1111-1111-111111111111",
+      "name": "Webhook - New Project",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            { "value1": "={{$json[\"project_name\"]}}", "operation": "isNotEmpty" },
+            { "value1": "={{$json[\"client_id\"]}}", "operation": "isNotEmpty" },
+            { "value1": "={{$json[\"site_address\"]}}", "operation": "isNotEmpty" }
+          ]
+        }
+      },
+      "id": "1a222222-2222-2222-2222-222222222222",
+      "name": "IF - Required Fields Present",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "const year = new Date().getFullYear();\nconst seq = String(Math.floor(Math.random()*900)+100);\nitems[0].json.project_id = `PRJ-${year}-${seq}`;\nreturn items;"
+      },
+      "id": "1a333333-3333-3333-3333-333333333333",
+      "name": "Function - Generate Project ID",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [640, 220]
+    },
+    {
+      "parameters": {
+        "resource": "database",
+        "operation": "getAll",
+        "databaseId": "={{$env[\"NOTION_MANAGERS_DB_ID\"]}}"
+      },
+      "id": "1a444444-4444-4444-4444-444444444444",
+      "name": "Notion - Query Available Managers",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 1,
+      "position": [860, 220]
+    },
+    {
+      "parameters": {
+        "resource": "folder",
+        "operation": "create",
+        "name": "={{$json[\"project_id\"]}} - {{$json[\"project_name\"]}}"
+      },
+      "id": "1a555555-5555-5555-5555-555555555555",
+      "name": "Google Drive - Create Project Folder",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 1,
+      "position": [1080, 220]
+    },
+    {
+      "parameters": {
+        "resource": "page",
+        "operation": "create",
+        "databaseId": "={{$env[\"NOTION_PROJECTS_DB_ID\"]}}"
+      },
+      "id": "1a666666-6666-6666-6666-666666666666",
+      "name": "Notion - Create Project Workspace",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 1,
+      "position": [1300, 220]
+    },
+    {
+      "parameters": {
+        "fromEmail": "automations@construction-co.com",
+        "toEmail": "={{$json[\"team_emails\"]}}",
+        "subject": "New Project Kickoff — {{$json[\"project_name\"]}} ({{$json[\"project_id\"]}})",
+        "text": "See docs/templates/project-kickoff-email.md for full template."
+      },
+      "id": "1a777777-7777-7777-7777-777777777777",
+      "name": "Send Email - Kickoff",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [1520, 220]
+    },
+    {
+      "parameters": {
+        "channel": "#new-projects",
+        "text": "🏗️ New project created: {{$json[\"project_name\"]}} ({{$json[\"project_id\"]}})"
+      },
+      "id": "1a888888-8888-8888-8888-888888888888",
+      "name": "Slack - Notify New Projects Channel",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 1,
+      "position": [1740, 220]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "sheetId": "={{$env[\"AUDIT_LOG_SHEET_ID\"]}}"
+      },
+      "id": "1a999999-9999-9999-9999-999999999999",
+      "name": "Google Sheets - Append Audit Log",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 1,
+      "position": [1960, 220]
+    }
+  ],
+  "connections": {
+    "Webhook - New Project": {
+      "main": [[{ "node": "IF - Required Fields Present", "type": "main", "index": 0 }]]
+    },
+    "IF - Required Fields Present": {
+      "main": [
+        [{ "node": "Function - Generate Project ID", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Function - Generate Project ID": {
+      "main": [[{ "node": "Notion - Query Available Managers", "type": "main", "index": 0 }]]
+    },
+    "Notion - Query Available Managers": {
+      "main": [[{ "node": "Google Drive - Create Project Folder", "type": "main", "index": 0 }]]
+    },
+    "Google Drive - Create Project Folder": {
+      "main": [[{ "node": "Notion - Create Project Workspace", "type": "main", "index": 0 }]]
+    },
+    "Notion - Create Project Workspace": {
+      "main": [[{ "node": "Send Email - Kickoff", "type": "main", "index": 0 }]]
+    },
+    "Send Email - Kickoff": {
+      "main": [[{ "node": "Slack - Notify New Projects Channel", "type": "main", "index": 0 }]]
+    },
+    "Slack - Notify New Projects Channel": {
+      "main": [[{ "node": "Google Sheets - Append Audit Log", "type": "main", "index": 0 }]]
+    }
+  }
+}

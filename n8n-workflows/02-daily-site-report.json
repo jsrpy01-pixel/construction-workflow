@@ -1,0 +1,156 @@
+{
+  "name": "02 - Daily Site Report Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "triggerTimes": {
+          "item": [
+            { "mode": "everyWeekday", "hour": 17, "minute": 0 }
+          ]
+        }
+      },
+      "id": "2a111111-1111-1111-1111-111111111111",
+      "name": "Cron - 5PM Weekdays",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "resource": "database",
+        "operation": "getAll",
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": { "conditions": [{ "key": "status", "condition": "equals", "value": "active" }] }
+      },
+      "id": "2a222222-2222-2222-2222-222222222222",
+      "name": "Notion - Get Active Projects",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 1,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            { "value1": "={{$json[\"is_holiday\"]}}", "value2": false }
+          ]
+        }
+      },
+      "id": "2a333333-3333-3333-3333-333333333333",
+      "name": "IF - Not a Holiday",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [640, 300]
+    },
+    {
+      "parameters": {
+        "channel": "={{$json[\"supervisor_slack_id\"]}}",
+        "text": "📋 Please submit today's site report for {{$json[\"project_name\"]}}: {{$json[\"form_link\"]}}"
+      },
+      "id": "2a444444-4444-4444-4444-444444444444",
+      "name": "Slack - Send Report Form Link",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 1,
+      "position": [860, 220]
+    },
+    {
+      "parameters": {
+        "amount": 2,
+        "unit": "hours"
+      },
+      "id": "2a555555-5555-5555-5555-555555555555",
+      "name": "Wait - For Response",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [1080, 220]
+    },
+    {
+      "parameters": {
+        "path": "daily-report-submit",
+        "httpMethod": "POST"
+      },
+      "id": "2a666666-6666-6666-6666-666666666666",
+      "name": "Webhook - Report Submitted",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [1300, 220]
+    },
+    {
+      "parameters": {
+        "resource": "fileFolder",
+        "operation": "upload"
+      },
+      "id": "2a777777-7777-7777-7777-777777777777",
+      "name": "Google Drive - Upload Photos",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 1,
+      "position": [1520, 220]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "table": "daily_reports"
+      },
+      "id": "2a888888-8888-8888-8888-888888888888",
+      "name": "Postgres - Insert Daily Report",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [1740, 220]
+    },
+    {
+      "parameters": {
+        "functionCode": "items[0].json.progress_delta = items[0].json.progress_pct - items[0].json.progress_pct_prev;\nreturn items;"
+      },
+      "id": "2a999999-9999-9999-9999-999999999999",
+      "name": "Function - Compute Progress Delta",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1960, 220]
+    },
+    {
+      "parameters": {
+        "fromEmail": "automations@construction-co.com",
+        "toEmail": "={{$json[\"manager_email\"]}}",
+        "subject": "Daily Report Summary — {{$json[\"project_name\"]}} ({{$json[\"date\"]}})"
+      },
+      "id": "2aaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      "name": "Send Email - PM Summary",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [2180, 220]
+    }
+  ],
+  "connections": {
+    "Cron - 5PM Weekdays": {
+      "main": [[{ "node": "Notion - Get Active Projects", "type": "main", "index": 0 }]]
+    },
+    "Notion - Get Active Projects": {
+      "main": [[{ "node": "IF - Not a Holiday", "type": "main", "index": 0 }]]
+    },
+    "IF - Not a Holiday": {
+      "main": [
+        [{ "node": "Slack - Send Report Form Link", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Slack - Send Report Form Link": {
+      "main": [[{ "node": "Wait - For Response", "type": "main", "index": 0 }]]
+    },
+    "Wait - For Response": {
+      "main": [[{ "node": "Webhook - Report Submitted", "type": "main", "index": 0 }]]
+    },
+    "Webhook - Report Submitted": {
+      "main": [[{ "node": "Google Drive - Upload Photos", "type": "main", "index": 0 }]]
+    },
+    "Google Drive - Upload Photos": {
+      "main": [[{ "node": "Postgres - Insert Daily Report", "type": "main", "index": 0 }]]
+    },
+    "Postgres - Insert Daily Report": {
+      "main": [[{ "node": "Function - Compute Progress Delta", "type": "main", "index": 0 }]]
+    },
+    "Function - Compute Progress Delta": {
+      "main": [[{ "node": "Send Email - PM Summary", "type": "main", "index": 0 }]]
+    }
+  }
+}
