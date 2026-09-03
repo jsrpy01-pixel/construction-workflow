@@ -1,0 +1,169 @@
+{
+  "id": "workflow_006",
+  "name": "Budget Tracking & Cost Alerts",
+  "description": "Monitors project budgets and alerts on cost overruns",
+  "version": "1.0",
+  "enabled": true,
+  "trigger": {
+    "type": "data_change",
+    "event": "expense.recorded",
+    "description": "Triggered when a new expense is recorded"
+  },
+  "actions": [
+    {
+      "id": "action_001",
+      "type": "record_expense",
+      "name": "Record Expense Entry",
+      "config": {
+        "table": "expenses",
+        "fields": {
+          "expense_id": "EXP-{SEQUENCE}",
+          "project_id": "$.project_id",
+          "category": "$.expense_category",
+          "amount": "$.amount",
+          "description": "$.description",
+          "vendor": "$.vendor_name",
+          "date": "$.expense_date",
+          "approved_by": "$.approver",
+          "created_at": "now()"
+        }
+      }
+    },
+    {
+      "id": "action_002",
+      "type": "calculate_project_costs",
+      "name": "Calculate Current Project Costs",
+      "config": {
+        "group_by": ["project_id", "expense_category"],
+        "calculate": [
+          "total_expenses",
+          "expenses_by_category",
+          "percentage_of_budget"
+        ]
+      }
+    },
+    {
+      "id": "action_003",
+      "type": "compare_to_budget",
+      "name": "Compare Against Budget",
+      "config": {
+        "budget_source": "project_budget",
+        "calculate_remaining": true,
+        "alert_thresholds": {
+          "warning": 80,
+          "critical": 95
+        }
+      }
+    },
+    {
+      "id": "action_004",
+      "type": "conditional_alert",
+      "name": "Check Budget Status",
+      "config": {
+        "conditions": [
+          {
+            "if": "cost_percent >= 95",
+            "then": "send_critical_alert"
+          },
+          {
+            "if": "cost_percent >= 80",
+            "then": "send_warning_alert"
+          },
+          {
+            "if": "cost_percent >= 100",
+            "then": "escalate_immediately"
+          }
+        ]
+      }
+    },
+    {
+      "id": "action_005",
+      "type": "send_alert",
+      "name": "Send Budget Alert Notification",
+      "config": {
+        "recipients": ["project_manager", "finance_manager"],
+        "channels": ["slack", "email"],
+        "alert_levels": {
+          "critical": "immediate",
+          "warning": "same_day"
+        },
+        "include_details": [
+          "current_spend",
+          "budget_remaining",
+          "percentage_used",
+          "cost_by_category"
+        ]
+      }
+    },
+    {
+      "id": "action_006",
+      "type": "update_budget_status",
+      "name": "Update Project Budget Status",
+      "config": {
+        "table": "projects",
+        "fields": {
+          "current_spend": "$.total_expenses",
+          "remaining_budget": "$.budget - $.total_expenses",
+          "budget_utilization_percent": "($.total_expenses / $.budget) * 100",
+          "budget_status": "$.status_level",
+          "last_updated": "now()"
+        }
+      }
+    },
+    {
+      "id": "action_007",
+      "type": "generate_budget_report",
+      "name": "Generate Budget Report",
+      "config": {
+        "template": "budget_status_report",
+        "include_sections": [
+          "budget_summary",
+          "expenses_by_category",
+          "spending_trend",
+          "cost_variance",
+          "forecast_completion_cost"
+        ],
+        "format": "pdf",
+        "frequency": "weekly"
+      }
+    },
+    {
+      "id": "action_008",
+      "type": "forecast_costs",
+      "name": "Forecast Project Completion Cost",
+      "config": {
+        "method": "linear_extrapolation",
+        "consider_project_progress": true,
+        "calculate_variance": true
+      }
+    },
+    {
+      "id": "action_009",
+      "type": "send_forecast",
+      "name": "Send Cost Forecast to Management",
+      "config": {
+        "recipients": ["project_manager", "finance_manager"],
+        "channels": ["email"],
+        "include_variance_analysis": true,
+        "frequency": "weekly"
+      }
+    }
+  ],
+  "conditions": [
+    {
+      "type": "data_condition",
+      "field": "amount",
+      "operator": ">",
+      "value": 0
+    }
+  ],
+  "error_handling": {
+    "retry_count": 3,
+    "retry_delay_seconds": 300,
+    "on_failure": "send_alert_to_admin"
+  },
+  "scheduling": {
+    "timeout_seconds": 300,
+    "priority": "high"
+  }
+}
