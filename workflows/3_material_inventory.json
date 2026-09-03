@@ -1,0 +1,123 @@
+{
+  "id": "workflow_003",
+  "name": "Material Purchase & Inventory",
+  "description": "Manages inventory tracking and automatically creates purchase orders",
+  "version": "1.0",
+  "enabled": true,
+  "trigger": {
+    "type": "data_change",
+    "event": "inventory.level_changed",
+    "description": "Triggered when inventory level drops below threshold"
+  },
+  "actions": [
+    {
+      "id": "action_001",
+      "type": "check_inventory_threshold",
+      "name": "Check Inventory Level",
+      "config": {
+        "table": "inventory",
+        "compare_field": "current_quantity",
+        "threshold_field": "minimum_quantity"
+      }
+    },
+    {
+      "id": "action_002",
+      "type": "calculate_order_quantity",
+      "name": "Calculate Order Quantity",
+      "config": {
+        "logic": "reorder_point_formula",
+        "consider_upcoming_projects": true,
+        "safety_stock_percent": 20
+      }
+    },
+    {
+      "id": "action_003",
+      "type": "create_purchase_order",
+      "name": "Create Purchase Order",
+      "config": {
+        "table": "purchase_orders",
+        "status": "draft",
+        "fields": {
+          "po_number": "PO-{SEQUENCE}",
+          "material_id": "$.material_id",
+          "quantity": "$.order_quantity",
+          "unit_price": "$.unit_price",
+          "total_amount": "$.order_quantity * $.unit_price",
+          "supplier_id": "$.preferred_supplier",
+          "requested_delivery_date": "$.needed_by_date",
+          "created_at": "now()"
+        }
+      }
+    },
+    {
+      "id": "action_004",
+      "type": "send_for_approval",
+      "name": "Send PO for Approval",
+      "config": {
+        "approvers": ["procurement_manager"],
+        "approval_amount_threshold": 5000,
+        "escalation_if_amount_exceeds": true
+      }
+    },
+    {
+      "id": "action_005",
+      "type": "notify_procurement",
+      "name": "Notify Procurement Team",
+      "config": {
+        "channels": ["slack", "email"],
+        "template": "purchase_order_created",
+        "include_details": true
+      }
+    },
+    {
+      "id": "action_006",
+      "type": "send_to_supplier",
+      "name": "Send PO to Supplier",
+      "config": {
+        "trigger": "after_approval",
+        "delivery_method": "email",
+        "format": "pdf",
+        "include_terms": true
+      }
+    },
+    {
+      "id": "action_007",
+      "type": "track_delivery",
+      "name": "Monitor Delivery Status",
+      "config": {
+        "track_method": "supplier_api",
+        "check_interval_hours": 24,
+        "notify_on_changes": true
+      }
+    },
+    {
+      "id": "action_008",
+      "type": "update_inventory",
+      "name": "Update Inventory on Receipt",
+      "config": {
+        "trigger": "delivery_received",
+        "update_fields": {
+          "current_quantity": "$.current_quantity + $.received_quantity",
+          "last_updated": "now()",
+          "last_receipt_date": "now()"
+        }
+      }
+    }
+  ],
+  "conditions": [
+    {
+      "type": "threshold_comparison",
+      "current_quantity": "<",
+      "minimum_quantity": true
+    }
+  ],
+  "error_handling": {
+    "retry_count": 3,
+    "retry_delay_seconds": 300,
+    "on_failure": "send_alert_to_admin"
+  },
+  "scheduling": {
+    "timeout_seconds": 180,
+    "priority": "high"
+  }
+}
