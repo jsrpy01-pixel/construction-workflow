@@ -1,0 +1,118 @@
+{
+  "id": "workflow_001",
+  "name": "Project Initiation & Job Tracking",
+  "description": "Automatically creates projects, assigns managers, and notifies teams",
+  "version": "1.0",
+  "enabled": true,
+  "trigger": {
+    "type": "webhook",
+    "event": "project.created",
+    "description": "Triggered when a new project is created in the system"
+  },
+  "actions": [
+    {
+      "id": "action_001",
+      "type": "assign_id",
+      "name": "Generate Project ID",
+      "config": {
+        "resource_type": "project",
+        "id_format": "PROJ-{YYYY}{MM}{DD}-{SEQUENCE}"
+      },
+      "output_mapping": {
+        "project_id": "$.generated_id"
+      }
+    },
+    {
+      "id": "action_002",
+      "type": "create_record",
+      "name": "Create Project Record",
+      "config": {
+        "table": "projects",
+        "fields": {
+          "project_id": "$.project_id",
+          "name": "$.project_name",
+          "client": "$.client_name",
+          "location": "$.location",
+          "start_date": "$.start_date",
+          "estimated_end_date": "$.end_date",
+          "budget": "$.budget",
+          "status": "created",
+          "created_at": "now()"
+        }
+      }
+    },
+    {
+      "id": "action_003",
+      "type": "assign_project_manager",
+      "name": "Assign Project Manager",
+      "config": {
+        "assignment_strategy": "round_robin",
+        "department": "project_management"
+      }
+    },
+    {
+      "id": "action_004",
+      "type": "create_project_folder",
+      "name": "Create Project Folder Structure",
+      "config": {
+        "drive": "google_drive",
+        "base_folder": "Construction Projects",
+        "subfolders": [
+          "Documents",
+          "Photos",
+          "Reports",
+          "Budgets",
+          "Timesheets",
+          "Safety",
+          "Quality Assurance",
+          "Change Orders"
+        ]
+      }
+    },
+    {
+      "id": "action_005",
+      "type": "send_notification",
+      "name": "Notify Project Team",
+      "config": {
+        "channels": ["slack", "email"],
+        "recipients": ["project_manager", "team_members"],
+        "template": "project_initiation_notification"
+      }
+    },
+    {
+      "id": "action_006",
+      "type": "create_project_schedule",
+      "name": "Create Project Schedule",
+      "config": {
+        "milestone_template": "standard_construction",
+        "auto_generate_phases": true
+      }
+    }
+  ],
+  "conditions": [
+    {
+      "type": "field_exists",
+      "field": "project_name",
+      "required": true
+    },
+    {
+      "type": "field_exists",
+      "field": "client_name",
+      "required": true
+    },
+    {
+      "type": "field_exists",
+      "field": "budget",
+      "required": true
+    }
+  ],
+  "error_handling": {
+    "retry_count": 3,
+    "retry_delay_seconds": 60,
+    "on_failure": "send_alert_to_admin"
+  },
+  "scheduling": {
+    "timeout_seconds": 300,
+    "priority": "high"
+  }
+}
