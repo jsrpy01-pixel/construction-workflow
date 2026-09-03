@@ -1,0 +1,133 @@
+{
+  "id": "workflow_002",
+  "name": "Daily Site Report Automation",
+  "description": "Collects daily progress reports from site supervisors and notifies management",
+  "version": "1.0",
+  "enabled": true,
+  "trigger": {
+    "type": "schedule",
+    "cron": "0 17 * * 1-5",
+    "description": "Triggers every weekday at 5:00 PM",
+    "timezone": "America/New_York"
+  },
+  "actions": [
+    {
+      "id": "action_001",
+      "type": "send_form_request",
+      "name": "Request Daily Report from Supervisors",
+      "config": {
+        "recipients": "site_supervisors",
+        "form_template": "daily_site_report",
+        "channels": ["slack", "email"],
+        "form_fields": [
+          "project_date",
+          "work_completed",
+          "progress_percentage",
+          "workers_on_site",
+          "equipment_used",
+          "issues_encountered",
+          "photos",
+          "weather_conditions",
+          "safety_incidents"
+        ],
+        "deadline_hours": 2
+      }
+    },
+    {
+      "id": "action_002",
+      "type": "store_form_response",
+      "name": "Store Report Data",
+      "config": {
+        "table": "daily_site_reports",
+        "fields_mapping": {
+          "project_id": "$.project_id",
+          "report_date": "$.project_date",
+          "supervisor_id": "$.supervisor_id",
+          "work_description": "$.work_completed",
+          "progress_percent": "$.progress_percentage",
+          "worker_count": "$.workers_on_site",
+          "equipment": "$.equipment_used",
+          "issues": "$.issues_encountered",
+          "photos_urls": "$.photos",
+          "weather": "$.weather_conditions",
+          "safety_incidents": "$.safety_incidents",
+          "created_at": "now()"
+        }
+      }
+    },
+    {
+      "id": "action_003",
+      "type": "upload_files",
+      "name": "Upload Photos to Project Folder",
+      "config": {
+        "destination": "google_drive",
+        "folder_path": "Construction Projects/{project_id}/Photos/{date}",
+        "file_source": "form_attachment",
+        "create_backup": true
+      }
+    },
+    {
+      "id": "action_004",
+      "type": "generate_report",
+      "name": "Generate Daily Summary Report",
+      "config": {
+        "template": "daily_report_summary",
+        "include_sections": [
+          "work_completed",
+          "progress_metrics",
+          "workforce_status",
+          "issues_and_blockers",
+          "photos_gallery"
+        ],
+        "format": "pdf",
+        "save_to": "google_drive"
+      }
+    },
+    {
+      "id": "action_005",
+      "type": "send_notification",
+      "name": "Notify Project Manager",
+      "config": {
+        "recipients": ["project_manager"],
+        "channels": ["slack", "email"],
+        "message_template": "daily_report_summary",
+        "attachments": ["summary_report.pdf"]
+      }
+    },
+    {
+      "id": "action_006",
+      "type": "update_project_status",
+      "name": "Update Project Progress",
+      "config": {
+        "field": "progress_percentage",
+        "value": "$.progress_percentage",
+        "trigger_milestone_alerts": true
+      }
+    },
+    {
+      "id": "action_007",
+      "type": "escalate_issues",
+      "name": "Escalate Reported Issues",
+      "config": {
+        "create_tickets": true,
+        "issue_classification": true,
+        "auto_assign_to": "project_manager"
+      }
+    }
+  ],
+  "conditions": [
+    {
+      "type": "time_condition",
+      "description": "Only on weekdays (Mon-Fri)"
+    }
+  ],
+  "error_handling": {
+    "retry_count": 2,
+    "retry_delay_seconds": 300,
+    "on_failure": "send_alert_to_admin"
+  },
+  "scheduling": {
+    "timeout_seconds": 600,
+    "priority": "high"
+  }
+}
