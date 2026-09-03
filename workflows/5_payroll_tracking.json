@@ -1,0 +1,178 @@
+{
+  "id": "workflow_005",
+  "name": "Worker Time Tracking & Payroll",
+  "description": "Automated time tracking and payroll processing for construction workers",
+  "version": "1.0",
+  "enabled": true,
+  "trigger": {
+    "type": "schedule",
+    "cron": "0 18 * * 5",
+    "description": "Triggers every Friday at 6:00 PM",
+    "timezone": "America/New_York"
+  },
+  "actions": [
+    {
+      "id": "action_001",
+      "type": "aggregate_time_entries",
+      "name": "Aggregate Weekly Time Entries",
+      "config": {
+        "table": "time_tracking",
+        "period": "weekly",
+        "group_by": ["project_id", "worker_id"],
+        "calculate": ["total_hours", "overtime_hours", "regular_hours"]
+      }
+    },
+    {
+      "id": "action_002",
+      "type": "validate_timesheet",
+      "name": "Validate Timesheet Data",
+      "config": {
+        "checks": [
+          "no_duplicate_entries",
+          "hours_within_limits",
+          "worker_assigned_to_project",
+          "project_is_active",
+          "overtime_under_threshold"
+        ],
+        "auto_correct": "flag_for_review"
+      }
+    },
+    {
+      "id": "action_003",
+      "type": "send_for_approval",
+      "name": "Send Timesheet for Supervisor Approval",
+      "config": {
+        "approvers": "project_supervisor",
+        "approval_deadline_hours": 24,
+        "escalation_if_overdue": true,
+        "channels": ["slack", "email"]
+      }
+    },
+    {
+      "id": "action_004",
+      "type": "calculate_payroll",
+      "name": "Calculate Payroll",
+      "config": {
+        "calculation_method": "hourly_rate",
+        "fields_mapping": {
+          "regular_pay": "regular_hours * hourly_rate",
+          "overtime_pay": "overtime_hours * (hourly_rate * 1.5)",
+          "gross_pay": "regular_pay + overtime_pay"
+        },
+        "apply_deductions": true,
+        "deduction_types": [
+          "federal_tax",
+          "state_tax",
+          "social_security",
+          "health_insurance"
+        ]
+      }
+    },
+    {
+      "id": "action_005",
+      "type": "create_payroll_record",
+      "name": "Create Payroll Record",
+      "config": {
+        "table": "payroll",
+        "status": "pending_approval",
+        "fields": {
+          "worker_id": "$.worker_id",
+          "pay_period_start": "$.period_start",
+          "pay_period_end": "$.period_end",
+          "regular_hours": "$.regular_hours",
+          "overtime_hours": "$.overtime_hours",
+          "gross_pay": "$.gross_pay",
+          "deductions": "$.total_deductions",
+          "net_pay": "$.net_pay",
+          "created_at": "now()"
+        }
+      }
+    },
+    {
+      "id": "action_006",
+      "type": "send_for_approval",
+      "name": "Send Payroll for Finance Approval",
+      "config": {
+        "approvers": ["finance_manager"],
+        "approval_amount_threshold": 0,
+        "require_approval": true
+      }
+    },
+    {
+      "id": "action_007",
+      "type": "process_payment",
+      "name": "Process Payment",
+      "config": {
+        "trigger": "after_approval",
+        "payment_method": "direct_deposit",
+        "schedule": "weekly",
+        "update_status": "paid"
+      }
+    },
+    {
+      "id": "action_008",
+      "type": "generate_payslip",
+      "name": "Generate Payslip",
+      "config": {
+        "template": "employee_payslip",
+        "format": "pdf",
+        "include_details": [
+          "hours_worked",
+          "pay_rate",
+          "gross_pay",
+          "deductions",
+          "net_pay",
+          "year_to_date_totals"
+        ]
+      }
+    },
+    {
+      "id": "action_009",
+      "type": "send_notification",
+      "name": "Send Payslip to Worker",
+      "config": {
+        "recipients": "worker_email",
+        "channels": ["email"],
+        "message_template": "payslip_notification",
+        "attachments": ["payslip.pdf"]
+      }
+    },
+    {
+      "id": "action_010",
+      "type": "generate_report",
+      "name": "Generate Payroll Summary Report",
+      "config": {
+        "template": "payroll_summary",
+        "include_metrics": [
+          "total_workers",
+          "total_hours",
+          "total_payroll",
+          "breakdown_by_project",
+          "overtime_analysis"
+        ],
+        "format": "pdf",
+        "distribute_to": ["finance_manager", "project_manager", "admin"]
+      }
+    }
+  ],
+  "conditions": [
+    {
+      "type": "time_condition",
+      "description": "Only on Fridays"
+    },
+    {
+      "type": "data_condition",
+      "field": "timesheet_status",
+      "value": "submitted"
+    }
+  ],
+  "error_handling": {
+    "retry_count": 2,
+    "retry_delay_seconds": 600,
+    "on_failure": "hold_for_manual_review"
+  },
+  "scheduling": {
+    "timeout_seconds": 1200,
+    "priority": "high"
+  }
+}
